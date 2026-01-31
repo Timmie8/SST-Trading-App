@@ -1,0 +1,37 @@
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+
+st.title("📊 Signal Analyzer")
+
+symbol = st.text_input("Vul symbool in:", value="AAPL").upper()
+interval = st.selectbox("Interval:", ["1h", "4h", "1d"], index=2)
+
+if st.button("Analyseer"):
+    data = yf.Ticker(symbol).history(period="250d", interval=interval)
+    if not data.empty:
+        close = data['Close']
+        last = close.iloc[-1]
+        
+        # Indicatoren
+        sma5, sma20, sma60, sma200 = close.rolling(5).mean(), close.rolling(20).mean(), close.rolling(60).mean(), close.rolling(200).mean()
+        
+        # RSI
+        delta = close.diff()
+        up, down = delta.clip(lower=0), -1 * delta.clip(upper=0)
+        ema_up = up.ewm(com=13, adjust=False).mean()
+        ema_down = down.ewm(com=13, adjust=False).mean()
+        rsi = 100 - (100 / (1 + (ema_up / ema_down)))
+        
+        # Resultaten Tabel
+        results = [
+            {"Indicator": "SMA5 > SMA20", "Status": "Bullish" if sma5.iloc[-1] > sma20.iloc[-1] else "Bearish"},
+            {"Indicator": "SMA20 > SMA60", "Status": "Bullish" if sma20.iloc[-1] > sma60.iloc[-1] else "Bearish"},
+            {"Indicator": "SMA60 > SMA200", "Status": "Bullish" if sma60.iloc[-1] > sma200.iloc[-1] else "Bearish"},
+            {"Indicator": "RSI > 50", "Status": "Bullish" if rsi.iloc[-1] > 50 else "Bearish"},
+            {"Indicator": "Prijs > SMA200", "Status": "Bullish" if last > sma200.iloc[-1] else "Bearish"}
+        ]
+        
+        st.table(pd.DataFrame(results))
+    else:
+        st.error("Geen data gevonden.")
